@@ -1,0 +1,5 @@
+# Archivos de caché de Python
+__pycache__/
+
+# Archivo de caché de la tasa de cambio
+ultima_tasa_paralelo.txt

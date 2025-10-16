@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Actualizador de Precios</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --netflix-red: #E50914;
+            --netflix-dark: #141414;
+            --netflix-gray: #808080;
+            --text-light: #fff;
+            --text-dark: #000;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Montserrat', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            /* Fondo mejorado con gradiente radial para dar profundidad */
+            background-color: var(--netflix-dark); /* Fallback por si el gradiente no carga */
+            background-image: radial-gradient(ellipse at center, #2a2a2a 0%, var(--netflix-dark) 70%);
+            color: var(--text-light);
+            min-height: 100vh; /* Asegura que el gradiente cubra toda la altura */
+        }
+        .main-container { padding: 0 4%; }
+        h1, h2, h3 { font-family: 'Bebas Neue', sans-serif; letter-spacing: 2px; }
+
+        /* --- Header --- */
+        .main-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 4%;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.7) 10%, rgba(0,0,0,0));
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .logo {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 2.5em;
+            color: var(--netflix-red);
+            text-decoration: none;
+        }
+
+        /* --- Hero Section --- */
+        .hero-section {
+            height: 45vh; /* Un poco más compacto */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            margin-bottom: 40px;
+            border-radius: 8px; /* Bordes redondeados */
+            position: relative; /* Necesario para el overlay */
+            overflow: hidden; /* Para que el fondo no se salga de los bordes redondeados */
+            
+            /* --- El cambio principal: Fondo con imagen y overlay --- */
+            background-image: linear-gradient(rgba(20, 20, 20, 0.85), rgba(20, 20, 20, 0.98)), url('https://images.pexels.com/photos/325185/pexels-photo-325185.jpeg');
+            background-size: cover;
+            background-position: center;
+            border: 1px solid #333;
+        }
+        .hero-section h1 { font-size: 4em; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        .hero-section p { font-size: 1.2em; margin-bottom: 20px; }
+
+        .error { background-color: #5c0a0f; border-left: 5px solid var(--netflix-red); padding: 15px; margin-bottom: 20px; font-weight: bold; color: var(--text-light); }
+        
+        .rate-value {
+            font-size: 3.5em;
+            font-weight: 700;
+            color: var(--text-light);
+            line-height: 1;
+            text-shadow: 0 0 15px rgba(255, 255, 255, 0.3); /* Efecto de brillo sutil */
+        }
+        .rate-currency { font-size: 1.5em; color: var(--netflix-gray); margin-left: 5px; }
+        .search-container { /* Parte del header ahora */
+            margin: 25px 0;
+            text-align: center;
+        }
+        #searchInput {
+            width: 70%;
+            max-width: 500px;
+            padding: 12px 20px;
+            font-size: 1.1em;
+            border: 1px solid var(--netflix-gray);
+            border-radius: 25px;
+            background-color: rgba(0,0,0,0.7);
+            color: var(--text-light);
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        #searchInput:focus {
+            outline: none;
+            border-color: var(--text-light);
+            box-shadow: 0 0 8px rgba(255,255,255,0.3);
+        }
+        /* --- Estilo de Carrusel Netflix --- */
+        .product-section { /* Contenedor de una fila/categoría */
+            margin-bottom: 40px;
+            position: relative;
+        }
+        .section-header h3 {
+            font-size: 2.2em;
+            font-weight: 700;
+            margin-bottom: 15px;
+        }
+        .product-carousel {
+            display: flex;
+            overflow-x: auto;
+            padding-bottom: 20px; /* Espacio para la barra de scroll */
+            scrollbar-width: thin;
+            scrollbar-color: var(--netflix-red) var(--netflix-dark);
+        }
+        .product-carousel::-webkit-scrollbar { height: 8px; }
+        .product-carousel::-webkit-scrollbar-track { background: #222; }
+        .product-carousel::-webkit-scrollbar-thumb { background-color: var(--netflix-red); border-radius: 20px; }
+
+        /* --- Tarjeta de Producto Mejorada --- */
+        .product-card {
+            flex: 0 0 220px; /* No crece, no se encoge, base de 220px */
+            height: 300px;
+            background: linear-gradient(135deg, #2C3E50, #4A5568); /* Gradiente sutil */
+            margin: 0 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between; /* Distribuye el contenido */
+            padding: 20px;
+        }
+        .product-card:first-child { margin-left: 0; }
+        .product-card:last-child { margin-right: 0; }
+
+        .product-card:hover {
+            transform: translateY(-10px) scale(1.05);
+            z-index: 10;
+            box-shadow: 0 20px 30px rgba(0,0,0,0.5);
+        }
+
+        .product-card-content .product-name { font-size: 1.4em; font-weight: bold; font-family: 'Montserrat', sans-serif; margin-bottom: 10px; }
+        .product-card-content .product-desc { font-size: 0.9em; color: #ccc; line-height: 1.4; }
+
+        .product-card-footer {
+            text-align: right;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: var(--netflix-gray);
+        }
+
+        /* --- Panel de Información con Efecto Frosted Glass --- */
+        .product-card-info {
+            transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            /* Efecto Frosted Glass */
+            background-color: rgba(20, 20, 20, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 20px;
+        }
+        .product-card:hover .product-card-info {
+            transform: translateY(0);
+        }
+        .product-card-info .product-name { display: none; } /* Ocultamos el nombre aquí porque ya está visible */
+        .product-card .product-price { font-size: 1em; color: #4CAF50; font-weight: bold; }
+        .product-card .product-price-bs { font-size: 0.9em; color: var(--netflix-gray); }
+
+        /* --- Flechas de Navegación del Carrusel --- */
+        .carousel-arrow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            border: none;
+            width: 50px;
+            height: 100px;
+            font-size: 2em;
+            cursor: pointer;
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .product-section:hover .carousel-arrow {
+            opacity: 1;
+        }
+        .arrow-left {
+            left: 0;
+            border-radius: 0 5px 5px 0;
+        }
+        .arrow-right {
+            right: 0;
+            border-radius: 5px 0 0 5px;
+        }
+
+
+        /* Estilo para el texto resaltado en la búsqueda */
+        mark {
+            background-color: #fff3cd; /* Amarillo suave */
+            padding: 0 2px;
+            border-radius: 3px;
+        }
+
+        /* --- Estilos del Carrito de Compras --- */
+        .cart-fab {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;            
+            background-color: var(--netflix-red);
+            color: white;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            cursor: pointer;
+            z-index: 1000;
+        }
+        .cart-count {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background-color: #dc3545;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 6px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1001;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: #181818;
+            margin: 10% auto;
+            padding: 20px;
+            border: 1px solid #333;
+            width: 80%;
+            max-width: 700px;
+            color: var(--text-light);
+            border-radius: 8px;
+        }
+        .close-button {
+            color: #555;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .cart-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #333; }
+        .cart-item-details { flex-grow: 1; }
+        .cart-item-actions { display: flex; align-items: center; }
+        .cart-item-actions input { width: 50px; text-align: center; margin: 0 10px; background-color: #333; color: var(--text-light); border: 1px solid #555; }
+        .cart-total { text-align: right; font-size: 1.2em; font-weight: bold; margin-top: 20px; }
+        .btn {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            margin: 5px;
+            background: none;
+            border: none;
+        }
+        .btn-icon {
+            font-size: 1.2em;
+            padding: 5px 8px;
+            line-height: 1;
+        }
+        .btn-primary { background-color: var(--netflix-red); color: white; }
+        .btn-danger { background-color: #dc3545; color: white; }
+        .btn-success { background-color: #28a745; color: white; }
+        .payment-options button { width: 100%; margin-bottom: 10px; }
+        .payment-info { background-color: #222; border: 1px solid #333; border-radius: 5px; padding: 15px; margin-top: 15px; }
+
+        /* Estilo para el botón oculto */
+        .hidden-btn {
+            font-weight: bold;
+            cursor: pointer;
+            color: #999; /* Color gris oscuro para que sea visible pero sutil */
+            text-decoration: none;
+        }
+
+        /* --- Estilos para añadir al carrito --- */
+        .add-to-cart-controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 10px;
+        }
+        .add-to-cart-controls input {
+            width: 80%;
+            padding: 8px;
+            text-align: center;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            background-color: #333;
+            color: var(--text-light);
+            border-color: #555;
+        }
+
+    </style>
+</head>
+<body>
+    <header class="main-header">
+        <a href="/" class="logo">CATÁLOGO</a>
+        <div class="search-container">
+            <input type="text" id="searchInput" placeholder="Buscar productos o categorías...">
+        </div>
+    </header>
+
+    <div class="main-container">
+        <!-- Mostramos mensajes flash (ej. errores) si existen -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Mostramos el resumen de tasas si se pudieron obtener -->
+        {% if tasa_bcv is not none %}
+            <div class="hero-section">
+                <h1>Tasa del dia</h1>
+                <p>Calculados con la tasa oficial del BCV.</p>
+                <div class="rate-display">
+                    <span class="rate-value">{{ "{:,.2f}".format(tasa_bcv) }}</span>
+                    <span class="rate-currency">Bs.</span>
+                </div>
+            </div>
+
+            <!-- Usamos el filtro 'groupby' de Jinja2 para agrupar productos por sección -->
+            {% for group in productos | groupby('seccion') %}
+                <!-- Añadimos una clase 'product-section' para identificar el contenedor de la sección -->
+                <div class="product-section" data-section-id="section-{{ loop.index }}">
+                    <div class="section-header">
+                        <h3>{{ group.grouper }}</h3>
+                    </div>
+                    <button class="carousel-arrow arrow-left">‹</button>
+                    <div class="product-carousel" id="carousel-{{ loop.index }}">
+                        {% for producto in group.list %}
+                        <!-- Tarjeta de Producto -->
+                        <div class="product-card" data-id="{{ producto.id }}" data-nombre="{{ producto.nombre }}" data-descripcion="{{ producto.descripcion }}" data-precio-usd="{{ producto.precio_nuevo }}" data-precio-bs="{{ producto.precio_bs }}" data-seccion="{{ producto.seccion }}" data-precio-base="{{ producto.precio_base }}">
+                            <div class="product-card-content">
+                                <h4 class="product-name">{{ producto.nombre }}</h4>
+                                <p class="product-desc">{{ producto.descripcion }}</p>
+                            </div>
+                            <div class="product-card-footer">ⓘ</div>
+
+                            <div class="product-card-info">
+                                <p class="product-price">${{ "{:,.2f}".format(producto.precio_nuevo) }}</p>
+                                <p class="product-price-bs">Bs. {{ "{:,.2f}".format(producto.precio_bs) }}</p>
+                                <div class="add-to-cart-controls">
+                                    <input type="number" value="1" min="1" class="product-quantity">
+                                    <button class="btn btn-primary btn-icon add-to-cart-btn" aria-label="Añadir al carrito">🛒</button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <button class="carousel-arrow arrow-right">›</button>
+                </div>
+            {% endfor %}
+            <div id="no-results" style="display: none; text-align: center; padding: 40px; font-size: 1.2em;">
+                <p>🙁 No se encontraron productos para tu búsqueda.</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Carrito de Compras Flotante -->
+    <button class="cart-fab" id="cart-fab" aria-label="Abrir carrito de compras">
+        🛒
+        <span class="cart-count" id="cart-count">0</span>
+    </button>
+
+    <!-- Modal del Carrito -->
+    <div id="cartModal" class="modal">
+        <div class="modal-content">
+            <button class="close-button" id="close-cart-modal" aria-label="Cerrar carrito">&times;</button>
+            <h2>🛒 Mi Carrito</h2>
+            <div id="cart-items">
+                <p>Tu carrito está vacío.</p>
+            </div>
+            <div id="cart-summary" style="display: none;">
+                <div class="cart-total" id="cart-total"></div>
+                <div style="text-align: right; margin-top: 20px;">
+                    <button class="btn btn-success" id="proceed-to-payment-btn">Proceder al Pago</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Pago -->
+    <div id="paymentModal" class="modal">
+        <div class="modal-content">
+            <button class="close-button" id="close-payment-modal" aria-label="Cerrar opciones de pago">&times;</button>
+            <h2>💳 Opciones de Pago</h2>
+            <div id="payment-summary" class="cart-total" style="text-align: center; margin-bottom: 20px;"></div>
+            <div class="payment-options">
+                <button class="btn btn-primary" data-payment-type="pagomovil">Pagar con Pago Móvil</button>
+                <button class="btn btn-primary" data-payment-type="binance">Pagar con Binance Pay</button>
+                <button class="btn btn-primary" data-payment-type="zelle">Zelle u otros bancos del mundo</button>
+            </div>
+            <div id="binance-info" class="payment-info" style="display: none;">
+                <h4>Datos para Binance Pay</h4>
+                <p>Por favor, escríbenos a WhatsApp para solicitar nuestro <strong>Pay ID</strong> y confirmar el monto total en USDT.</p>
+            </div>
+            <div id="pagomovil-info" class="payment-info" style="display: none;">
+                <h4>Datos para Pago Móvil</h4>
+                <p>Por favor, escríbenos a WhatsApp para solicitar nuestros datos de <strong>Pago Móvil</strong>.</p>
+            </div>
+            <div id="zelle-info" class="payment-info" style="display: none;">
+                <h4>Zelle / Otros Bancos Internacionales</h4>
+                <p>El precio especial en dólares será calculado a través de una casa de cambio. Por favor, escríbenos directamente a WhatsApp para recibir las instrucciones.</p>
+            </div>
+            <div id="whatsapp-button-container" style="text-align: center; margin-top: 20px; display: none;">
+                <p id="whatsapp-instructions">Una vez realizado el pago, envía tu comprobante por WhatsApp.</p>
+                <button class="btn btn-success" id="send-whatsapp-btn"></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    let selectedPaymentType = null; // Variable para saber qué método de pago se eligió
+    // --- LÓGICA DEL CARRITO DE COMPRAS ---
+    let cart = {};
+
+    function clearCart() {
+        cart = {};
+        updateCart();
+    }
+
+    function addToCart(id, name, priceUSD, priceBS, section, priceBase) {
+        // Encontrar el input de cantidad relativo al botón presionado
+        const row = document.querySelector(`.product-card[data-id='${id}']`);
+        const quantity = parseInt(row.querySelector('.product-quantity').value);
+        if (quantity <= 0) return;
+
+        if (cart[id]) {
+            cart[id].quantity += quantity;
+        } else {
+            cart[id] = { name, priceUSD, priceBS, quantity, section, priceBase };
+        }
+        updateCart();
+        // Feedback visual
+        const cartFab = document.getElementById('cart-fab');
+        cartFab.style.transform = 'scale(1.2)';
+        setTimeout(() => cartFab.style.transform = 'scale(1)', 200);
+    }
+
+    function updateCartQuantity(id, newQuantity) {
+        if (cart[id]) {
+            cart[id].quantity = newQuantity;
+            if (cart[id].quantity <= 0) {
+                delete cart[id];
+            }
+            updateCart();
+        }
+    }
+
+    function removeFromCart(id) {
+        if (cart[id]) {
+            delete cart[id];
+            updateCart();
+        }
+    }
+
+    function updateCart() {
+        const cartItemsContainer = document.getElementById('cart-items');
+        const cartSummary = document.getElementById('cart-summary');
+        const cartTotalEl = document.getElementById('cart-total');
+        const cartCount = document.getElementById('cart-count');
+        
+        let totalUSD = 0;
+        let totalBS = 0;
+        let totalItems = 0;
+        
+        if (Object.keys(cart).length === 0) {
+            cartItemsContainer.innerHTML = '<p>Tu carrito está vacío.</p>';
+            cartSummary.style.display = 'none';
+        } else {
+            cartItemsContainer.innerHTML = '';
+            for (const id in cart) {
+                const item = cart[id];
+                totalUSD += item.priceUSD * item.quantity;
+                totalBS += item.priceBS * item.quantity;
+                totalItems += item.quantity;
+
+                const itemEl = document.createElement('div');
+                itemEl.className = 'cart-item';
+                itemEl.innerHTML = `
+                    <div class="cart-item-details">
+                        <strong>${item.name}</strong><br>
+                        <small>$${item.priceUSD.toFixed(2)} / Bs. ${item.priceBS.toFixed(2)}</small>
+                    </div>
+                    <div class="cart-item-actions">
+                        <input type="number" class="cart-item-quantity" value="${item.quantity}" min="1" data-id="${id}">
+                        <button class="btn btn-danger btn-icon remove-from-cart-btn" data-id="${id}" aria-label="Eliminar del carrito">✕</button>
+                    </div>
+                `;
+                cartItemsContainer.appendChild(itemEl);
+            }
+            cartSummary.style.display = 'block';
+            cartTotalEl.innerHTML = `Total: <strong>$${totalUSD.toFixed(2)}</strong> / <strong>Bs. ${totalBS.toFixed(2)}</strong>`;
+        }
+        cartCount.textContent = totalItems;
+    }
+
+    function toggleCartModal() {
+        const modal = document.getElementById('cartModal');
+        modal.style.display = (modal.style.display === 'block') ? 'none' : 'block';
+    }
+
+    function togglePaymentModal() {
+        const modal = document.getElementById('paymentModal');
+        modal.style.display = (modal.style.display === 'block') ? 'none' : 'block';
+    }
+
+    function showPaymentModal() {
+        // Cerramos el modal del carrito y abrimos el de pago
+        toggleCartModal(); 
+        togglePaymentModal(); 
+    }
+
+    function showPaymentInfo(type) {
+        selectedPaymentType = type; // Guardamos el tipo de pago
+        const binanceInfo = document.getElementById('binance-info');
+        const pagomovilInfo = document.getElementById('pagomovil-info');
+        const zelleInfo = document.getElementById('zelle-info');
+        const paymentSummary = document.getElementById('payment-summary');
+        const whatsappInstructions = document.getElementById('whatsapp-instructions');
+        const whatsappButton = document.getElementById('send-whatsapp-btn');
+
+        binanceInfo.style.display = type === 'binance' ? 'block' : 'none';
+        pagomovilInfo.style.display = type === 'pagomovil' ? 'block' : 'none';
+        zelleInfo.style.display = type === 'zelle' ? 'block' : 'none';
+        document.getElementById('whatsapp-button-container').style.display = 'block';
+
+        // Calculamos los totales una sola vez
+        let totalUSD = 0; // Total con precio ajustado (para Bs.)
+        let totalBS = 0;
+        let totalBaseUSD = 0; // Total con precio base (para USDT)
+        for (const id in cart) {
+            const item = cart[id];
+            totalUSD += item.priceUSD * item.quantity;
+            totalBS += item.priceBS * item.quantity;
+            totalBaseUSD += item.priceBase * item.quantity;
+        }
+
+        if (type === 'binance') {
+            // Para Binance, mostramos el total en Bs y el especial en USDT.
+            paymentSummary.innerHTML = `Total: <strong>Bs. ${totalBS.toFixed(2)}</strong> / <strong>${totalBaseUSD.toFixed(2)} Tether (USDT)</strong>`;
+            whatsappInstructions.textContent = "Presiona el botón para enviarnos tu pedido y solicitar los datos de pago.";
+            whatsappButton.innerHTML = "💬 Solicitar Datos (Binance)";
+        } else {
+            // Para Pago Móvil y Zelle, mostramos el total normal en $ y Bs.
+            paymentSummary.innerHTML = `Total: <strong>$${totalUSD.toFixed(2)}</strong> / <strong>Bs. ${totalBS.toFixed(2)}</strong>`;
+            whatsappInstructions.textContent = (type === 'zelle')
+                ? "Presiona el botón para enviarnos tu pedido y solicitar las instrucciones de pago."
+                : "Presiona el botón para enviarnos tu pedido y solicitar los datos de pago.";
+            whatsappButton.innerHTML = (type === 'zelle') ? "💬 Solicitar Instrucciones (Zelle)" : "💬 Solicitar Datos (Pago Móvil)";
+        }
+    }
+
+    function sendWhatsAppMessage() {
+        let message = "¡Hola! Quisiera reportar mi pago para el siguiente pedido:\n\n";
+        let totalUSD = 0; // Precio ajustado
+        let totalBaseUSD = 0; // Precio base para USDT
+
+        for (const id in cart) {
+            const item = cart[id];
+            message += `*${item.quantity}x* - ${item.section} - ${item.name}\n`;
+            totalUSD += item.priceUSD * item.quantity;
+            totalBaseUSD += item.priceBase * item.quantity;
+        }
+
+        if (selectedPaymentType === 'binance') {
+            message += `\n*Total Referencial: ${totalBaseUSD.toFixed(2)} USDT*`;
+            message += "\n\nQuisiera recibir los datos para pagar por Binance Pay. ¡Gracias!";
+        } else if (selectedPaymentType === 'zelle') {
+            message += `\n*Total Referencial: $${totalUSD.toFixed(2)}*`;
+            message += "\n\nQuisiera recibir las instrucciones para pagar por Zelle o transferencia internacional. ¡Gracias!";
+        } else {
+            const totalBS = totalUSD * parseFloat("{{ tasa_bcv }}"); // Recalculamos por si acaso
+            message += `\n*Total a Pagar: Bs. ${totalBS.toFixed(2)}*`;
+            message += "\n\nQuisiera recibir los datos para realizar un Pago Móvil. ¡Gracias!";
+        }
+
+        const whatsappUrl = `https://wa.me/{{ whatsapp_number }}?text=${encodeURIComponent(message)}`;
+        window.open(whatsappUrl, '_blank');
+        clearCart(); // Opcional: vaciar carrito después de enviar
+    }
+
+    // --- LÓGICA DEL BUSCADOR (sin cambios) ---
+    /**
+     * Elimina los acentos de una cadena de texto.
+     * Ej: "Crédito" -> "Credito"
+     */
+    function removeAccents(str) {
+        return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    }
+
+    /**
+     * Restaura el contenido original de un elemento, eliminando los tags <mark>.
+     */
+    function unhighlight(element) {
+        if (element) {
+            element.innerHTML = element.textContent || element.innerText;
+        }
+    }
+
+    /**
+     * Resalta el texto coincidente dentro de un elemento.
+     */
+    function highlight(element, searchTerm) {
+        if (!element || !searchTerm) return;
+
+        const originalText = element.textContent || element.innerText;
+        // Usamos una Expresión Regular para encontrar el texto sin distinguir mayúsculas/minúsculas ni acentos.
+        const searchTermWithoutAccents = removeAccents(searchTerm);
+        const regex = new RegExp(`(${searchTermWithoutAccents})`, 'gi');
+        
+        const textWithoutAccents = removeAccents(originalText);
+        
+        if (textWithoutAccents.match(regex)) {
+            // Reemplazamos en el texto original para mantener mayúsculas y acentos originales.
+            const newHtml = originalText.replace(new RegExp(`(${searchTerm})`, 'gi'), '<mark>$1</mark>');
+            element.innerHTML = newHtml;
+        }
+    }
+
+    function filterProducts() {
+        const searchTerm = document.getElementById('searchInput').value;
+        const searchTermNormalized = removeAccents(searchTerm).toUpperCase();
+
+        const sections = document.querySelectorAll('.product-section');
+        let anySectionVisible = false;
+
+        sections.forEach(section => {
+            const sectionHeader = section.querySelector('.section-header h3');
+            const sectionNameNormalized = removeAccents(sectionHeader.textContent).toUpperCase();
+            const sectionMatches = sectionNameNormalized.includes(searchTermNormalized);
+
+            // Limpiamos resaltados anteriores
+            unhighlight(sectionHeader);
+
+            const cards = section.querySelectorAll('.product-card');
+            let hasVisibleProducts = false;
+
+            cards.forEach(card => {
+                const productNameEl = card.querySelector('.product-name');
+                const productNameNormalized = removeAccents(productNameEl.textContent).toUpperCase();
+                const productMatches = productNameNormalized.includes(searchTermNormalized);
+
+                unhighlight(productNameEl); // Limpiamos resaltado anterior
+
+                // Lógica de visibilidad mejorada:
+                // - Si el término de búsqueda está vacío, mostramos todo.
+                // - Si hay un término, mostramos la tarjeta SOLO si el producto o la sección coinciden.
+                const shouldShow = searchTerm.length === 0 || sectionMatches || productMatches;
+                card.style.display = shouldShow ? "" : "none";
+
+                // Contamos un producto visible si coincide directamente (o si la sección coincide y no hay búsqueda de producto)
+                if (shouldShow && productMatches) hasVisibleProducts = true;
+            });
+
+            section.style.display = (sectionMatches || hasVisibleProducts) ? "block" : "none";
+            if (sectionMatches || hasVisibleProducts) anySectionVisible = true;
+
+            // Si la búsqueda no está vacía, aplicamos el resaltado
+            if (searchTerm.length > 0) {
+                if (sectionMatches) {
+                    highlight(sectionHeader, searchTerm);
+                }
+                if (hasVisibleProducts) {
+                    cards.forEach(card => {
+                        const productNameEl = card.querySelector('.product-name');
+                        highlight(productNameEl, searchTerm);
+                    });
+                }
+            }
+        });
+
+        // Mostrar u ocultar el mensaje de "no resultados"
+        document.getElementById('no-results').style.display = anySectionVisible ? 'none' : 'block';
+    }
+
+    function setupCarouselArrows() {
+        document.querySelectorAll('.product-section').forEach(section => {
+            const carousel = section.querySelector('.product-carousel');
+            const leftArrow = section.querySelector('.arrow-left');
+            const rightArrow = section.querySelector('.arrow-right');
+            const scrollAmount = carousel.clientWidth * 0.8; // Desplazar 80% del ancho visible
+
+            leftArrow.addEventListener('click', () => {
+                carousel.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+            });
+            rightArrow.addEventListener('click', () => {
+                carousel.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+            });
+        });
+    }
+
+    // --- ASIGNACIÓN DE EVENTOS (EVENT LISTENERS) ---
+    document.getElementById('searchInput').addEventListener('keyup', filterProducts);
+    
+    document.getElementById('cart-fab').addEventListener('click', toggleCartModal);
+    document.getElementById('close-cart-modal').addEventListener('click', toggleCartModal);
+    
+    // El botón "Proceder al Pago" ahora abre directamente el modal de pago
+    document.getElementById('proceed-to-payment-btn').addEventListener('click', showPaymentModal);
+    
+    document.getElementById('close-payment-modal').addEventListener('click', togglePaymentModal);
+
+    document.querySelectorAll('.payment-options .btn').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const paymentType = e.currentTarget.getAttribute('data-payment-type');
+            showPaymentInfo(paymentType);
+        });
+    });
+
+    document.getElementById('send-whatsapp-btn').addEventListener('click', sendWhatsAppMessage);
+
+    document.querySelectorAll('.add-to-cart-btn').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const row = e.currentTarget.closest('.product-card');
+            const id = row.dataset.id;
+            const name = row.dataset.nombre;
+            // Corregimos la captura del atributo de descripción
+            const desc = row.dataset.descripcion || "";
+            const priceUSD = parseFloat(row.dataset.precioUsd);
+            const priceBS = parseFloat(row.dataset.precioBs);
+            const section = row.dataset.seccion;
+            const priceBase = parseFloat(row.dataset.precioBase);
+            addToCart(id, name, priceUSD, priceBS, section, priceBase);
+        });
+    });
+
+    // Event delegation para los botones dentro del carrito (que se crean dinámicamente)
+    document.getElementById('cart-items').addEventListener('click', (e) => {
+        // Botón de eliminar
+        if (e.target.classList.contains('remove-from-cart-btn')) {
+            const id = e.target.dataset.id;
+            removeFromCart(id);
+        }
+    });
+
+    document.getElementById('cart-items').addEventListener('change', (e) => {
+        // Input de cantidad
+        if (e.target.classList.contains('cart-item-quantity')) {
+            const id = e.target.dataset.id;
+            const newQuantity = parseInt(e.target.value);
+            updateCartQuantity(id, newQuantity);
+        }
+    });
+
+    // Inicializar las flechas del carrusel
+    setupCarouselArrows();
+
+}); // Fin de DOMContentLoaded
+    </script>
+
+</body>
+</html>
