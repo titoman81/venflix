@@ -1,84 +1,91 @@
 import requests
-from bs4 import BeautifulSoup
 import time
-import os
+import logging
+ 
+# Configurar un logger para este módulo
+log = logging.getLogger(__name__)
 
-# Nombre del archivo que usaremos como "memoria" para la última tasa
-CACHE_FILE = 'ultima_tasa_paralelo.txt'
+# --- Sistema de Caché ---
+_cached_price = None
+_last_fetch_time = 0
+CACHE_DURATION_SECONDS = 4 * 60 * 60  # 4 horas
  
 def obtener_tasa_cambiar_saldo_ar():
     """
-    Obtiene la tasa de 'Cambiar Saldo.ar' desde KaskoGo Online.
-    Si falla, intenta usar la última tasa guardada en caché.
+    Obtiene la tasa del USDT en Binance P2P para VES con Mercantil o PagoMovil.
+    Filtra por un monto de transacción razonable para obtener una tasa más realista.
+    Esta tasa se considera una buena aproximación del dólar paralelo.
+    Utiliza un sistema de caché para no consultar la API en cada llamada.
     """
-    URL = "https://kaskogo.online/app/"
-    HEADERS = {
+    global _cached_price, _last_fetch_time
+
+    current_time = time.time()
+
+    # 1. Comprobar si la caché es válida
+    if _cached_price is not None and (current_time - _last_fetch_time) < CACHE_DURATION_SECONDS:
+        log.info(f"Usando tasa de la caché: {_cached_price}")
+        return _cached_price
+
+    # 2. Si la caché ha expirado o no existe, obtener un nuevo valor
+    log.info("Caché expirada o no existente. Obteniendo nueva tasa de Binance...")
+    
+    URL = "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search"
+    headers = {
+        "Content-Type": "application/json",
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
+    payload = {
+        "fiat": "VES",
+        "page": 1,
+        "rows": 1, # Solo necesitamos el anuncio con el mejor precio (el primero)
+        "tradeType": "BUY",
+        "asset": "USDT",
+        "countries": [],
+        "proMerchantAds": False,      # Incluir a todos los comerciantes
+        "shieldMerchantAds": False,   # Incluir a todos los comerciantes
+        "payTypes": ["Mercantil", "PagoMovil"], # Filtramos por el método de pago
+        "classifies": ["mass", "profession"],
+        "transAmount": "30000" # Filtra por anuncios que acepten una transacción de 30,000 Bs
+    }
+    
     MAX_RETRIES = 3
     for attempt in range(MAX_RETRIES):
         try:
-            response = requests.get(URL, headers=HEADERS, timeout=20)
+            response = requests.post(URL, headers=headers, json=payload, timeout=15)
             response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
+            data = response.json()
  
-            rate_cards = soup.find_all('div', class_='rate-card')
-            if not rate_cards:
-                print("❌ No se encontraron tarjetas de tasas. La estructura de la página pudo haber cambiado.")
-                raise ValueError("No se encontraron 'rate-cards', posible página de mantenimiento.")
- 
-            for card in rate_cards:
-                title_element = card.find('span', class_='text-lg font-semibold text-gray-200')
-                if title_element and 'Cambiar Saldo.ar' in title_element.get_text():
-                    price_element = card.find('span', class_='rate-value')
-                    if price_element:
-                        raw_price = price_element.get_text(strip=True)
-                        clean_price_str = raw_price.replace('Bs.', '').strip().replace(',', '.')
-                        tasa = float(clean_price_str)
-                        # Guardamos la tasa obtenida exitosamente en nuestro archivo de caché
-                        try:
-                            with open(CACHE_FILE, 'w') as f:
-                                f.write(str(tasa))
-                            print(f"💾 Tasa guardada en caché ({CACHE_FILE}).")
-                        except IOError as e:
-                            print(f"⚠️ Advertencia: No se pudo guardar la tasa en el archivo caché: {e}")
-                        return tasa
-            print("❌ No se pudo encontrar la tarjeta con el título 'Cambiar Saldo.ar'.")
-            # Si no se encontró la tarjeta, lo consideramos un error de scraping y forzamos un reintento
-            raise AttributeError("No se encontró la tarjeta 'Cambiar Saldo.ar'")
- 
+            if data.get('code') == '000000' and data.get('data'):
+                first_ad = data['data'][0]
+                price_str = first_ad['adv']['price']
+                new_price = float(price_str)
+                
+                # 3. Actualizar la caché con el nuevo valor
+                _cached_price = new_price
+                _last_fetch_time = current_time
+                log.info(f"Caché actualizada. Nueva tasa: {new_price}")
+                
+                return new_price
+            else:
+                log.warning(f"La API de Binance no devolvió datos válidos. Respuesta: {data.get('message', 'Sin mensaje')}")
+                break # No reintentar si la API responde pero sin datos
         except requests.exceptions.RequestException as e:
-            print(f"⚠️ Intento {attempt + 1}/{MAX_RETRIES} fallido al contactar KaskoGo. Error de red: {e}")
-        except (AttributeError, IndexError, ValueError) as e:
-            print(f"⚠️ Intento {attempt + 1}/{MAX_RETRIES} fallido. Error procesando la página (scraping): {e}")
-        
-        # Si no es el último intento, esperamos antes de volver a intentar
-        if attempt < MAX_RETRIES - 1:
-            print(f"   ... Reintentando en 5 segundos ...")
-            time.sleep(5)
+            log.warning(f"Intento {attempt + 1}/{MAX_RETRIES} fallido al contactar la API de Binance. Error de red: {e}")
+            if attempt < MAX_RETRIES - 1:
+                time.sleep(5)
+        except (KeyError, IndexError, ValueError) as e:
+            log.error(f"Error procesando la respuesta de Binance: {e}. La estructura de la API pudo haber cambiado.")
+            break # No reintentar si la estructura de la API cambió
 
-    # Si salimos del bucle sin éxito, intentamos usar la caché
-    print("❌ Se alcanzó el número máximo de reintentos o la página cambió. Intentando usar la última tasa guardada...")
-    if os.path.exists(CACHE_FILE):
-        try:
-            with open(CACHE_FILE, 'r') as f:
-                cached_rate = float(f.read().strip())
-                print(f"✅ Usando última tasa guardada en caché: {cached_rate}")
-                return cached_rate
-        except (IOError, ValueError) as e:
-            print(f"❌ Error al leer o convertir la tasa del archivo caché: {e}")
-    else:
-        print(f"⚠️ El archivo de caché '{CACHE_FILE}' no existe. No hay tasa de respaldo.")
-    
-    print("❌ No hay una tasa en caché disponible. No se puede continuar.")
-    return None
+    # 4. Si la obtención de datos falla, devolver el valor antiguo (si existe) para no romper la app
+    log.error("No se pudo obtener una nueva tasa de Binance. Se devolverá el último valor conocido si existe.")
+    return _cached_price
  
 if __name__ == "__main__":
     # --- Prueba ---
-    import os
-    print("Buscando tasa de Cambiar Saldo.ar...")
+    print("Buscando tasa del paralelo en Binance P2P...")
     tasa_saldo_ar = obtener_tasa_cambiar_saldo_ar()
     if tasa_saldo_ar:
-        print(f"✅ Tasa Cambiar Saldo.ar obtenida: {tasa_saldo_ar}")
+        print(f"✅ Tasa Paralelo (USDT) obtenida: {tasa_saldo_ar}")
     else:
-        print("❌ No se pudo obtener la tasa de Cambiar Saldo.ar.")
+        print("❌ No se pudo obtener la tasa del paralelo desde Binance.")
